@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:batch="http://www.springframework.org/schema/batch" xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/batch 
+		http://www.springframework.org/schema/batch/spring-batch-2.2.xsd
+		http://www.springframework.org/schema/beans 
+		http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+		http://www.springframework.org/schema/util 
+		http://www.springframework.org/schema/util/spring-util-3.2.xsd
+		">
+
+	<bean id="propertyConfigurer"
+		class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="location">
+			<value>classpath:batch-config.properties</value>
+		</property>
+	</bean>
+
+	<import resource="../config/context.xml" />
+	<import resource="../config/database.xml" />
+
+	<job id="opptyJob" xmlns="http://www.springframework.org/schema/batch">
+        <step id="cloudantOpptyCopy" next="opptyProcess">
+					<tasklet>
+						<chunk reader="cloudantOpptyReader"
+							writer="cloudantOpptyWriter" commit-interval="1"/>
+					</tasklet>
+		</step>
+		<step id="opptyProcess" >
+					<tasklet>
+						<chunk reader="opptyProcessReader"
+							writer="opptyProcessWriter" commit-interval="100"/>
+					</tasklet>
+		</step>
+	</job>
+	<bean id="cloudantOpptyReader" class="com.ibm.isa.oppty.isa_oppty.CloudantOpptyReader">
+	    <property name="dburl" value="${cloudant.url}" />
+		<property name="dbusername" value="${cloudant.dbusername}" />
+		<property name="dbpassword" value="${cloudant.dbpassword}" />
+		<property name="database" value="isoppty_backup" />
+		<property name="dataAccess" ref="CloudantDataAccess" />
+		<property name="limit" value="30000" />
+	</bean>
+	<bean id="cloudantOpptyWriter"
+		class="com.ibm.isa.oppty.isa_oppty.CloudantOpptyWriter"
+		scope="step">
+		<property name="url" value="${db2.url}" />
+		<property name="userid" value="${db2.username}" />
+		<property name="passwd" value="${db2.password}" />
+		<property name="database" value="isaods.oppty_cloudant1" />
+	</bean>
+	<bean id="opptyProcessReader"
+		class="org.springframework.batch.item.database.JdbcCursorItemReader">
+		<property name="dataSource" ref="dataSource" />
+		<property name="sql">
+			<value>
+                <![CDATA[
+						       SELECT OPPTY_NUM AS NUM, OPPTY_ID AS ID, REV AS REV
+						  FROM ISAODS.OPPTY_CLOUDANT1
+                ]]>
+			</value>
+		</property>
+		<property name="rowMapper" ref="opptyProcessRowMapper"/>
+	</bean>
+	
+	<bean id="opptyProcessRowMapper" class="com.ibm.isa.oppty.isa_oppty.OpptyProcessRowMapper"/>
+	<bean id="opptyProcessWriter" class="com.ibm.isa.oppty.isa_oppty.OpptyProcessWriter">
+		<property name="dataAccess" ref="CloudantDataAccess" />
+		<property name="database" value="isoppty_backup" />
+	</bean>
+	<bean id="CloudantDataAccess" class="com.ibm.isa.oppty.isa_oppty.CloudantDataAccess">
+		<property name="dburl" value="${cloudant.url}" />
+		<property name="dbusername" value="${cloudant.dbusername}" />
+		<property name="dbpassword" value="${cloudant.dbpassword}" />
+		<property name="schema" value="${db2.rtpschema}" />
+		<property name="url" value="${db2.url}" />
+		<property name="userid" value="${db2.username}" />
+		<property name="passwd" value="${db2.password}" />
+	</bean>
+</beans>
